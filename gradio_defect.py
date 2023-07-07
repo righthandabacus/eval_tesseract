@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-"""Test out image manipulation techniques"""
+"""Test out image manipulation techniques for synthetic defects"""
 
 import os
 import shutil
@@ -16,6 +16,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+# all image manipulation is created in this file
 from imgproc import opdict
 
 
@@ -106,7 +107,7 @@ def gr_action(operation):
 
 
 
-def create_gradio(projectname="Test out image operations"):
+def gradio_create(projectname="Test out image operations"):
     """Create the Gradio app: Connects the components to action handlers"""
     with gr.Blocks(analytics_enabled=False, title=projectname, css=None) as demo:
         # inputs
@@ -147,10 +148,10 @@ if __name__ == "__main__":
     os.makedirs(static_dir, exist_ok=True)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     # let Gradio hook up itself to FastAPI
-    app = gr.mount_gradio_app(app, create_gradio(), path="/")
-    # create_gradio().launch() -- only if no FastAPI needed, e.g., no static file
+    app = gr.mount_gradio_app(app, gradio_create(), path="/")
+    #gradio_create().launch() -- only if no FastAPI needed, e.g., no static file
+    #uvicorn.run("gradio_defect:app", host="0.0.0.0", port=7860, reload=True)  # allow reload
     uvicorn.run(app, host="0.0.0.0", port=7860)  # cannot do reload=True
-    #uvicorn.run("degrade:app", host="0.0.0.0", port=7860, reload=True)
 
 
 # ----
