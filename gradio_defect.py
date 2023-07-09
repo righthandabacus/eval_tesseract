@@ -12,6 +12,7 @@ os.environ['MAGICK_HOME'] = '/opt/homebrew'
 
 import cv2
 import gradio as gr
+import numpy as np
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -40,7 +41,7 @@ state = dict(filename=None, orig=None)
 
 def listdir() -> Iterable[str]:
     """Read the image dir and yield out all image files"""
-    for filename in os.listdir(__IMAGEDIR):
+    for filename in sorted(os.listdir(__IMAGEDIR)):
         if not os.path.isfile(os.path.join(__IMAGEDIR, filename)):
             continue
         if os.path.splitext(filename)[1].lower() not in IMAGEEXT:
@@ -103,7 +104,10 @@ def gr_action(operation):
         return
     print("Applying", operation, "to", state["filename"])
     function = opdict[operation]
-    return function(state["orig"])
+    assert state["orig"].dtype == np.uint8
+    img = function(state["orig"])
+    assert img.dtype == np.uint8
+    return img
 
 
 
@@ -113,10 +117,9 @@ def gradio_create(projectname="Test out image operations"):
         # inputs
         gr.HTML(r'<div><h1 style="position:relative;"><img src="static/synechron.png" width="100" height="200" style="float:right;" />%s</h1></div>' % projectname)
         with gr.Row():
-            filenames = gr.Dropdown(choices=list(listdir()), max_choices=1, label="Images from disk")
-            ops = gr.Dropdown(choices=list(opdict.keys()), max_choices=1, label="Operations")
-            with gr.Column():
-                run = gr.Button("Action")
+            filenames = gr.Dropdown(choices=list(listdir()), max_choices=1, label="Images from disk", scale=3)
+            ops = gr.Dropdown(choices=list(opdict.keys()), max_choices=1, label="Operations", scale=2)
+            run = gr.Button("Action", scale=1)
         # output
         with gr.Row():
             img1 = gr.Image(label="Original", show_label=True)
@@ -140,18 +143,19 @@ def gradio_create(projectname="Test out image operations"):
     return demo
 
 
+app = FastAPI()
+# for serving Synechron logo
+static_dir = os.path.join(__FILEDIR, "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# let Gradio hook up itself to FastAPI
+app = gr.mount_gradio_app(app, gradio_create(), path="/")
+
 # serve the app
 if __name__ == "__main__":
-    app = FastAPI()
-    # for serving Synechron logo
-    static_dir = os.path.join(__FILEDIR, "static")
-    os.makedirs(static_dir, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-    # let Gradio hook up itself to FastAPI
-    app = gr.mount_gradio_app(app, gradio_create(), path="/")
     #gradio_create().launch() -- only if no FastAPI needed, e.g., no static file
-    #uvicorn.run("gradio_defect:app", host="0.0.0.0", port=7860, reload=True)  # allow reload
-    uvicorn.run(app, host="0.0.0.0", port=7860)  # cannot do reload=True
+    #uvicorn.run(app, host="0.0.0.0", port=7860)  # cannot do reload=True
+    uvicorn.run("gradio_defect:app", host="0.0.0.0", port=7860, reload=True)  # allow reload
 
 
 # ----

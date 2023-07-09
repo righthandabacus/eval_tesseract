@@ -1,9 +1,7 @@
-# run_ocr.py
-import argparse
-import json
+"""OCR demo tool"""
 
-import cv2
 import pytesseract
+import pandas as pd
 
 
 def ocr_details(img):
@@ -25,18 +23,23 @@ def ocr_details(img):
     return data
 
 
-def main(args=None):
+if __name__ == "__main__":
+    import argparse
+    import json
+    import cv2
+
     parser = argparse.ArgumentParser()
     parser.add_argument("input_img")
-    parser.add_argument("output_json")
-    args = parser.parse_args(args=None)
+    args = parser.parse_args()
 
-    img = cv2.cvtColor(cv2.imread(args.input_img, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+    imagefile = args.input_img
+    img = cv2.cvtColor(cv2.imread(imagefile, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
     data = ocr_details(img)
-
-    with open(args.output_json, "w") as fp:
-        fp.write(json.dumps(data, indent=4, ensure_ascii=False))
-
-
-if __name__ == "__main__":
-    main()
+    #print(json.dumps(data, indent=4, ensure_ascii=False))
+    df = pd.DataFrame(data)
+    df = df[df["text"] != ""]
+    with pd.option_context("display.max_rows", 100, "display.max_columns", 0, "display.min_rows", 30):
+        print(df)
+    strs = pytesseract.image_to_string(img, lang="eng",
+                                       config="--oem 1 --psm 3")
+    print(strs)
