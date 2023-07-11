@@ -3,6 +3,7 @@
 
 """Test out image manipulation techniques"""
 
+import argparse
 import os
 
 # set up env var for imagemagick (wand)
@@ -64,9 +65,9 @@ def blend(orig_img: np.ndarray, add_img: np.ndarray, intensity: float|str = 0.5,
 #
 
 
-@image_op("Shadow/watermark")
+@image_op("shadow")
 def shadow_defect_curved(img):
-    shadow_intensity = 0.5
+    shadow_intensity = 0.5  # in case blend with a weight
     num_points = 10
     white_page = 255 * np.ones_like(img)
     height, width = white_page.shape[:2]
@@ -74,19 +75,16 @@ def shadow_defect_curved(img):
     points = points.reshape((-1, 1, 2))
     cv2.fillPoly(white_page, [points], color=(150, 150, 150))
 
-    # Apply blur to the shadow region
-    kernel_size = (25, 25)  # Adjust the kernel size for desired blur effect
-    blurred_shadow = cv2.blur(white_page, kernel_size)
+    # Apply blur to the shadow region using the function defined in this module
+    blurred_shadow = add_blur(white_page)
 
     # Create shadow image with blurred effect
-    #shadow_image = cv2.addWeighted(img, 1 - shadow_intensity, blurred_shadow, shadow_intensity, 0)
-    shadow_image = np.minimum(blurred_shadow, img)
-
+    shadow_image = blend(blurred_shadow, img, "min")
     return shadow_image
 
 
 
-@image_op("Hair defects")
+@image_op("hair")
 def add_hair_defect(img):
     num_hairs=4
     hair_length_range=(800, 1000)
@@ -109,7 +107,7 @@ def add_hair_defect(img):
 
     return img
 
-@image_op("Hair wriggle")
+@image_op("wriggle hair")
 def hair_defect_curve(img):
     num_hairs = 4
     hair_length_range = (800, 1000)
@@ -141,7 +139,7 @@ def hair_defect_curve(img):
     return img
 
 
-@image_op("Dust")
+@image_op("dust")
 def add_dust_image(img, density=1e-4):
     num_particles = int(img.shape[0] * img.shape[1] * density)
     white_page = 255*np.ones_like(img)
@@ -149,7 +147,7 @@ def add_dust_image(img, density=1e-4):
     x = np.random.randint(0, width - 1, num_particles)
     y = np.random.randint(0, height - 1, num_particles)
     for n in range(num_particles):
-        radius = 5
+        radius = max(round(min(height,width)/5e3), 1)
         cv2.circle(white_page, (x[n], y[n]), radius, (80, 90, 100), -1)
     dust_image = np.minimum(img, white_page)
 
@@ -184,7 +182,7 @@ if False:
         cv2.putText(img, "NB!", (int(max_x * 0.8), int(max_y * 0.3)), cv2.FONT_HERSHEY_SIMPLEX, 10, (0, 0, 0), 20, cv2.LINE_AA)
         return img
 
-@image_op("Scribble")
+@image_op("scribble")
 def scribble(img):
     height, width = img.shape[:2]
     texts = ["fascinating", "__", "_ _", "NB!", "V", "v", "mmm", "mnnm", "mmmmm", "|", "Z", "O", "o", "X"]
@@ -205,28 +203,14 @@ def scribble(img):
         return np.array(image)
 
 
-@image_op("Shadow")
-def add_shadow(img):
-    # Convert the image to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    k = round(min(img.shape[:2])*1e-3)
-    blur = cv2.GaussianBlur(gray, (0, 0), k)
-    adjusted = cv2.addWeighted(blur, 1.2, -30, 0, 0)
-    adjusted_bgr = cv2.cvtColor(adjusted, cv2.COLOR_GRAY2BGR)
-    shadowed_img = cv2.addWeighted(img, 0.6, adjusted_bgr, 0.4, 0)
-
-    return shadowed_img
-
-
-@image_op("Binarize")
+@image_op("binarize")
 def binarize(img):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     _, img = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
     return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
 
-
-@image_op("Dilate")
+@image_op("dilate")
 def dilate(img):
     gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresholded_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
@@ -236,7 +220,7 @@ def dilate(img):
     return img
 
 
-@image_op("Erode")
+@image_op("erode")
 def dilate(img):
     gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresholded_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
@@ -247,7 +231,7 @@ def dilate(img):
 
 
 # Perform opening (erosion followed by dilation)
-@image_op("Opening")
+@image_op("open")
 def opening(img):
     gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresholded_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
@@ -257,7 +241,7 @@ def opening(img):
     return img
 
 # Perform closing (dilation followed by erosion)
-@image_op("Closing")
+@image_op("close")
 def closing(img):
     gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresholded_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
@@ -267,7 +251,7 @@ def closing(img):
     return img
 
 
-@image_op("Watermark")
+@image_op("watermark")
 def watermark(img):
     # custom font see: https://gist.github.com/nathzi1505/904ce98d09e5f5785eb98d99171ab214
     transp_grey = (80, 80, 80)
@@ -276,7 +260,7 @@ def watermark(img):
     return img
 
 
-@image_op("Weak ink")
+@image_op("weak ink")
 def weaken(img):
     # doesn't look good if low resolution,
     # and the radius/sigma param doesn't seem to make any effect
@@ -285,15 +269,15 @@ def weaken(img):
         return np.array(image)
 
 
-@image_op("Camera blur")
-def camera_blur(img):
+@image_op("blur")
+def add_blur(img):
     # determine kernel size, must be positive odd integer
     k = 2*int(max(min(img.shape[:2])/200, 3))-1
     img = cv2.GaussianBlur(img, (k,k), 0)
     return img
 
 
-@image_op("Add speckle noise")
+@image_op("speckle")
 def add_speckle_noise(img):
     """Add speckle noise to image, which is (img + R * img) for a Gaussian noise R"""
     noisy = skimage.util.random_noise(img, mode="speckle")
@@ -301,14 +285,14 @@ def add_speckle_noise(img):
     return noisy
 
 
-@image_op("Add salt & pepper noise")
+@image_op("salt pepper")
 def add_sp_noise(img):
     noisy = skimage.util.random_noise(img, mode="s&p")
     noisy = (noisy * 255).astype(np.uint8)
     return noisy
 
 
-@image_op("Add Gaussian noise")
+@image_op("gaussian")
 def add_gaussian_noise(img):
     if "use skimage":
         noisy = skimage.util.random_noise(img, mode="gaussian")
@@ -320,7 +304,7 @@ def add_gaussian_noise(img):
     return noisy
 
 
-@image_op("Add Poisson noise")
+@image_op("poisson")
 def add_poisson_noise(img):
     if "low-light" == False:
         # To simulate low-light noise - https://stackoverflow.com/questions/19289470/
@@ -339,7 +323,7 @@ def add_poisson_noise(img):
     return noisy
 
 
-@image_op("Rotate 5 deg clockwise")
+@image_op("rotate -5")
 def rotate_355(img):
     height, width = img.shape[:2]
     center = (width // 2, height // 2)
@@ -349,7 +333,7 @@ def rotate_355(img):
     return rotated_img
 
 
-@image_op("Rotate 10 deg clockwise")
+@image_op("rotate -10")
 def rotate_350(img):
     height, width = img.shape[:2]
     center = (width // 2, height // 2)
@@ -360,7 +344,7 @@ def rotate_350(img):
     return rotated_img
 
 
-@image_op("Rotate 5 deg anti clockwise")
+@image_op("rotate 5")
 def rotate_5(img):
     height, width = img.shape[:2]
     center = (width // 2, height // 2)
@@ -370,7 +354,7 @@ def rotate_5(img):
     return rotated_img
 
 
-@image_op("Rotate 10 deg anti clockwise")
+@image_op("rotate 10")
 def rotate_10(img):
     height, width = img.shape[:2]
     center = (width // 2, height // 2)
@@ -380,13 +364,13 @@ def rotate_10(img):
     return rotated_img
 
 
-@image_op("Grayscale")
+@image_op("grayscale")
 def grayscale(img):
     img = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), cv2.COLOR_GRAY2RGB)
     return img
 
 
-@image_op("Fax")
+@image_op("fax")
 def fax(img):
     """Simulate FAX resolution. Standard resolution is 204x98 dpi, i.e.,
     vertical resolution was half of the horizontal. This function simulates a
@@ -397,7 +381,7 @@ def fax(img):
     return img
 
 
-@image_op("Highlighter")
+@image_op("highlighter")
 def add_highlight_defects(img):
     """The case of random highlighter mark on the paper"""
     num_defects = 50
@@ -420,3 +404,18 @@ def add_highlight_defects(img):
 
     img = blend(img, hilite_img, "min", mask=hilite_mask)
     return img
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("method", choices=list(opdict.keys()))
+    parser.add_argument("input_img")
+    parser.add_argument("output_img")
+    args = parser.parse_args()
+
+    function = opdict[args.method]
+    img = cv2.imread(args.input_img, cv2.IMREAD_COLOR)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = function(img)
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(args.output_img, img)
